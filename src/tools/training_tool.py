@@ -80,11 +80,30 @@ def load_config(config_path):
 
 
 def load_data(data_path, BAND_NAMES, PIXEL_INFO):
-    data_shp = gpd.read_file(data_path)
-    data_dn = data_shp[BAND_NAMES].values
-    data_dn_normal = data_dn / 10000
-    data_info = data_shp[PIXEL_INFO].values
-    return data_dn_normal, data_info
+    shp_files = list(data_path.glob('*.shp'))
+    data_dn_n_list = []
+    data_info_ilst = []
+    data_group_id_list = []
+
+    for idx, shp_path in enumerate(shp_files, start=1):
+        gdf_temp = gpd.read_file(shp_path)
+        gdf_temp['group_id'] = idx
+
+        data_dn = gdf_temp[BAND_NAMES].values
+        data_dn_normal = data_dn / 10000
+        data_info = gdf_temp[PIXEL_INFO].values
+        # data_group_id = gdf_temp['group_id'].values
+
+        data_dn_n_list.append(data_dn_normal)
+        data_info_ilst.append(data_info)
+        # data_group_id_list.append(data_group_id)
+
+    # data_shp = gpd.read_file(data_path)
+    # data_dn = data_shp[BAND_NAMES].values
+    # data_dn_normal = data_dn / 10000
+    # data_info = data_shp[PIXEL_INFO].values
+    # return data_dn_normal, data_info
+    return data_dn_n_list, data_info_ilst
 
 
 def random_sample(data, info, SAMPLE_NUMS, RANDSEED, CLASS_MAPPING):
@@ -115,13 +134,24 @@ def random_sample(data, info, SAMPLE_NUMS, RANDSEED, CLASS_MAPPING):
 
 
 def traing_sample_prepare(data_path, BAND_NAMES, PIXEL_INFO, SAMPLE_NUMS, RANDSEED, CLASS_MAPPING):
-    data_dn_n, data_info = load_data(data_path, BAND_NAMES, PIXEL_INFO)
+    data_dn_n_list, data_info_list = load_data(
+        data_path, BAND_NAMES, PIXEL_INFO)
 
-    data_training = np.hstack(
-        (data_dn_n, calculate_tool.indices_generate(data_dn_n)))
+    sample_data_list = []
+    sample_info_list = []
 
-    sample_data, sample_info = random_sample(
-        data_training, data_info, SAMPLE_NUMS, RANDSEED, CLASS_MAPPING)
+    for i in range(len(data_dn_n_list)):
+        temp_data, temp_info = random_sample(
+            data_dn_n_list[i], data_info_list[i], SAMPLE_NUMS, RANDSEED, CLASS_MAPPING)
+
+        temp_data = np.hstack(
+            (temp_data, calculate_tool.indices_generate(temp_data)))
+
+        sample_data_list.append(temp_data)
+        sample_info_list.append(temp_info)
+
+    sample_data, sample_info = np.vstack(
+        sample_data_list), np.vstack(sample_info_list)
     return sample_data, sample_info
 
 
@@ -186,6 +216,7 @@ def grid_search(data_path, config, save_dir='output/grid_search', prefix='model'
         CLASS_MAPPING=CLASS_MAPPING,
     )
     y = y_info[:, 0].astype(int)
+    group_ids = y_info[:, 1].astype(int)
     n_classes = len(np.unique(y))
     print(f"数据加载完成: X.shape={X.shape}, 类别数={n_classes}")
 
@@ -216,6 +247,7 @@ def grid_search(data_path, config, save_dir='output/grid_search', prefix='model'
     save_dir.mkdir(parents=True, exist_ok=True)
 
     from sklearn.model_selection import cross_validate
+    from sklearn.model_selection import GroupKFold
 
     for i, combo in enumerate(combinations):
         params = dict(zip(keys, combo))
@@ -242,10 +274,18 @@ def grid_search(data_path, config, save_dir='output/grid_search', prefix='model'
         train_acc = accuracy_score(y, y_pred)
 
         # 3.3 交叉验证（和参考代码完全一样：传已训练好的模型）
-        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        # cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        # cv_scores = cross_validate(
+        #     model, X, y,
+        #     cv=cv,
+        #     scoring=['accuracy', 'precision_macro',
+        #              'recall_macro', 'f1_macro'],
+        # )
+        gkf = GroupKFold(n_splits=5)
         cv_scores = cross_validate(
             model, X, y,
-            cv=cv,
+            cv=gkf,
+            groups=group_ids,
             scoring=['accuracy', 'precision_macro',
                      'recall_macro', 'f1_macro'],
         )

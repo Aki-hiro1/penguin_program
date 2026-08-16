@@ -38,16 +38,25 @@ mapping:
 model: random_forest
 pixel_info:
 - Id
+- group_id
 randnseed: 42
 sample_nums:
-- 1000
-- 800
-- 800
-- 800
-- 400
-- 1000
+# - 1000
+# - 800
+# - 800
+# - 800
+# - 400
+# - 1000
+# - 200
+# - 600
+- 300
 - 200
-- 600
+- 200
+- 200
+- 100
+- 300
+- 60
+- 180
 param_grid:
   n_estimators: [100, 200]
   max_depth: [5, 10, 15]

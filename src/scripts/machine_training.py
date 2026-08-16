@@ -14,7 +14,7 @@ except ModuleNotFoundError as e:
 
 def main():
     # ========== 1. 路径配置 ==========
-    data_path = Path("data/new_merge.shp")
+    data_path = Path("data")
     config_path = Path("config/test.yaml")
     model_dir = Path("model")
     model_dir.mkdir(parents=True, exist_ok=True)
